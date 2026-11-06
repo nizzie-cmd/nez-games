@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bribe-Tac-Toe · Nez Games</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&family=Courier+Prime:wght@400;700&family=Libre+Franklin:wght@400;500;600&display=swap">
+<style>
+/* Layout: a single banknote-like panel; engraved board in the middle, ledger strip beneath. */
+:root {
+  --paper: #e9efe4;
+  --paper-2: #dde6d6;
+  --ink: #1f3b2c;
+  --ink-soft: #4f6b5a;
+  --seal: #a3322a;
+  --gold: #8a6d1f;
+  --line: #b5c6b0;
+  --display: "Old Standard TT", "Times New Roman", serif;
+  --body: "Libre Franklin", system-ui, -apple-system, sans-serif;
+  --mono: "Courier Prime", ui-monospace, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #142019; --paper-2: #1b2a21; --ink: #d6e6d3; --ink-soft: #95ae9b;
+    --seal: #e0675c; --gold: #d4b45a; --line: #33493b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #142019; --paper-2: #1b2a21; --ink: #d6e6d3; --ink-soft: #95ae9b;
+  --seal: #e0675c; --gold: #d4b45a; --line: #33493b; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 40px;
+  background-image:
+    repeating-radial-gradient(circle at 50% 30%, transparent 0 7px, color-mix(in srgb, var(--line) 35%, transparent) 7px 8px);
+}
+
+.note {
+  max-width: 560px;
+  margin: 0 auto;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  outline: 1px solid var(--ink);
+  outline-offset: 5px;
+  padding: 22px clamp(16px, 4vw, 32px) 26px;
+  display: grid;
+  gap: 20px;
+}
+
+header { display: grid; gap: 4px; text-align: center; }
+.serial {
+  display: flex; justify-content: space-between;
+  font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; color: var(--seal);
+}
+h1 {
+  font-family: var(--display); font-weight: 700; font-size: clamp(30px, 7vw, 44px);
+  line-height: 1.05; margin: 4px 0 0; letter-spacing: 0.01em; text-wrap: balance;
+}
+.tagline { font-family: var(--display); font-style: italic; color: var(--ink-soft); margin: 0; font-size: 16px; }
+
+.wallet {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink);
+}
+.wallet > div { padding: 8px 6px; text-align: center; display: grid; gap: 2px; }
+.wallet > div + div { border-left: 1px solid var(--line); }
+.label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-soft); }
+.val { font-family: var(--mono); font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.val.cash { color: var(--gold); }
+
+.status {
+  text-align: center; font-family: var(--display); font-size: 20px; min-height: 1.5em; margin: 0;
+  text-wrap: balance;
+}
+.status.win { color: var(--gold); }
+.status.loss { color: var(--seal); }
+
+.board {
+  width: min(100%, 360px); aspect-ratio: 1; max-width: 100%;
+  margin: 0 auto;
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+  position: relative;
+}
+.cell {
+  appearance: none; border: 0; background: transparent; color: var(--ink);
+  font-family: var(--display); font-size: clamp(48px, 15vw, 76px); line-height: 1;
+  display: grid; place-items: center; cursor: pointer; position: relative;
+  transition: background-color .15s;
+}
+.cell:nth-child(-n+6) { border-bottom: 2px solid var(--ink); }
+.cell:not(:nth-child(3n)) { border-right: 2px solid var(--ink); }
+.cell:hover:not(:disabled) { background: var(--paper-2); }
+.cell:focus-visible { outline: 3px solid var(--gold); outline-offset: -6px; }
+.cell:disabled { cursor: default; }
+.cell.o { color: var(--seal); }
+.cell.win-line { background: color-mix(in srgb, var(--gold) 22%, transparent); }
+.cell .mark { display: inline-block; }
+.cell.fresh .mark { animation: stamp .28s ease-out; }
+@keyframes stamp { from { transform: scale(1.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* bribe mode: computer's marks become targets */
+.board.bribing .cell.o:not(:disabled) {
+  cursor: crosshair;
+  background: repeating-linear-gradient(-45deg, transparent 0 6px, color-mix(in srgb, var(--seal) 14%, transparent) 6px 8px);
+}
+.board.bribing .cell.o:not(:disabled)::after {
+  content: "−$1"; position: absolute; top: 6px; right: 8px;
+  font-family: var(--mono); font-size: 12px; color: var(--seal); font-weight: 700;
+}
+.cell.erasing .mark { animation: shred .4s ease-in forwards; }
+@keyframes shred { to { transform: translateY(14px) rotate(-14deg); opacity: 0; filter: blur(2px); } }
+
+.controls { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+button.btn {
+  font-family: var(--body); font-weight: 600; font-size: 14px; letter-spacing: 0.02em;
+  padding: 10px 16px; border: 1.5px solid var(--ink); background: var(--paper); color: var(--ink);
+  cursor: pointer; border-radius: 2px;
+}
+button.btn:hover:not(:disabled) { background: var(--paper-2); }
+button.btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+button.btn:disabled { opacity: .45; cursor: not-allowed; }
+button.btn.pay { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+button.btn.pay:hover:not(:disabled) { background: var(--ink-soft); border-color: var(--ink-soft); }
+button.btn.pay[aria-pressed="true"] { background: var(--seal); border-color: var(--seal); color: var(--paper); }
+
+.hint { text-align: center; font-size: 13px; color: var(--ink-soft); margin: 0; min-height: 1.5em; }
+
+.ledger { border-top: 1px dashed var(--ink-soft); padding-top: 12px; display: grid; gap: 8px; }
+.ledger h2 { font-family: var(--display); font-size: 16px; font-weight: 700; margin: 0; font-style: italic; }
+.ledger ol {
+  margin: 0; padding: 0; list-style: none; font-family: var(--mono); font-size: 13px;
+  max-height: 128px; overflow-y: auto; display: grid; gap: 2px;
+}
+.ledger li { display: flex; justify-content: space-between; gap: 12px; font-variant-numeric: tabular-nums; }
+.ledger li .amt { color: var(--seal); white-space: nowrap; }
+.ledger li .amt.plus { color: var(--gold); }
+.ledger .empty { color: var(--ink-soft); font-style: italic; }
+.fine { font-size: 11.5px; color: var(--ink-soft); text-align: center; margin: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cell.fresh .mark, .cell.erasing .mark { animation: none; }
+}
+</style>
+</head>
+<body>
+<style>
+.buy { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center;
+  border: 1px dashed var(--ink-soft); padding: 12px; }
+.buy label { font-size: 13px; color: var(--ink-soft); display: flex; align-items: center; gap: 8px; }
+.buy input { width: 4.2em; font-family: var(--mono); font-size: 15px; padding: 8px; background: var(--paper);
+  color: var(--ink); border: 1.5px solid var(--ink); border-radius: 2px; }
+.buy input:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.notice { text-align: center; font-size: 13.5px; margin: 0; padding: 8px 10px; border: 1px solid var(--gold); color: var(--ink); }
+.notice.err { border-color: var(--seal); color: var(--seal); }
+</style>
+
+<style>
+[hidden] { display: none !important; }
+.home { font-size: 13px; font-weight: 600; color: var(--ink-soft); text-decoration: none; justify-self: start; }
+.home:hover { color: var(--ink); text-decoration: underline; }
+.home:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+body { margin: 0; }
+.invite { display: flex; gap: 8px; align-items: stretch; }
+.invite input { flex: 1; min-width: 0; font-family: var(--mono); font-size: 13px; padding: 8px 10px; background: var(--paper-2);
+  color: var(--ink); border: 1.5px solid var(--ink); border-radius: 2px; }
+.lobby { display: grid; gap: 14px; justify-items: center; text-align: center; }
+.lobby p { margin: 0; max-width: 42ch; color: var(--ink-soft); }
+.val.small { font-size: 16px; padding-top: 4px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ink-soft); margin-right: 6px; vertical-align: 1px; }
+.dot.on { background: var(--gold); }
+</style>
+
+<main class="note">
+  <a class="home" href="/">← Nez Games</a>
+  <header>
+    <div class="serial"><span id="serialL">B 00000000 T</span><span>SERIES 2026</span></div>
+    <h1>Bribe-Tac-Toe</h1>
+    <p class="tagline">Beat your friend. Or pay to.</p>
+  </header>
+
+  <p class="notice" id="notice" hidden></p>
+
+  <section class="lobby" id="lobby" hidden>
+    <p>Start a game and send your friend the link. Whoever opens it first plays O. On your turn you can pay $1 to erase one of their marks.</p>
+    <button class="btn pay" id="startBtn">Start a game</button>
+  </section>
+
+  <section id="game" hidden style="display:grid; gap:20px">
+    <div class="invite" id="inviteRow">
+      <input id="inviteLink" readonly aria-label="Invite link">
+      <button class="btn" id="copyBtn">Copy link</button>
+    </div>
+
+    <section class="wallet" aria-label="Players and score">
+      <div><span class="label">You are</span><span class="val cash" id="you">–</span></div>
+      <div><span class="label">X · O · Draws</span><span class="val" id="record">0·0·0</span></div>
+      <div><span class="label">Your friend</span><span class="val small" id="friend">Not joined</span></div>
+    </section>
+
+    <p class="status" id="status" aria-live="polite">Connecting…</p>
+
+    <div class="board" id="board" role="grid" aria-label="Tic tac toe board"></div>
+
+    <p class="hint" id="hint"></p>
+
+    <div class="controls">
+      <button class="btn pay" id="payBtn" aria-pressed="false">Pay $1 to erase a mark</button>
+      <button class="btn" id="rematchBtn" hidden>Rematch</button>
+      <button class="btn" id="newBtn">New game</button>
+    </div>
+
+    <section class="ledger" aria-label="Payments this game">
+      <h2>Ledger</h2>
+      <ol id="ledger"></ol>
+    </section>
+  </section>
+
+  <p class="fine">Payments are processed by Stripe and go to the game's creator. You can erase one of your opponent's marks per turn, and erasing doesn't use up your move.</p>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const CELLS = ["top left","top middle","top right","middle left","center","middle right","bottom left","bottom middle","bottom right"];
+  let g = null, es = null, erasing = false, busy = false, prevBoard = null;
+
+  const notice = (text, err) => {
+    const n = $("notice"); n.hidden = !text; n.textContent = text || ""; n.className = "notice" + (err ? " err" : "");
+  };
+  const api = async (url, body) => {
+    const r = await fetch(url, body === undefined ? {} : {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(new Error(data.error || "Something went wrong. Try again."), { status: r.status });
+    return data;
+  };
+  const act = async (url, body) => {
+    if (busy) return; busy = true;
+    try { await api(url, body); notice(""); }
+    catch (err) { notice(err.message, true); }
+    finally { busy = false; render(); }
+  };
+
+  const over = () => g && (g.winner || g.draw);
+  const opp = () => (g.you === "X" ? "O" : "X");
+  const myTurn = () => g && g.you && g.turn === g.you && !over() && g.seats.O;
+  const canErase = () => myTurn() && !g.erasedThisTurn && g.board.includes(opp());
+
+  function render() {
+    if (!g) return;
+    if (erasing && !canErase()) erasing = false;
+    const boardEl = $("board");
+    boardEl.innerHTML = "";
+    boardEl.classList.toggle("bribing", erasing);
+    g.board.forEach((m, i) => {
+      const b = document.createElement("button");
+      const isNew = prevBoard && m && prevBoard[i] !== m;
+      b.className = "cell" + (m === "O" ? " o" : "") + (isNew ? " fresh" : "") + (g.line && g.line.includes(i) ? " win-line" : "");
+      // .bribing styles target .o; mark the opponent's cells as targets either way
+      if (erasing && m === opp()) b.classList.add("o");
+      b.setAttribute("role", "gridcell");
+      b.setAttribute("aria-label", CELLS[i] + ": " + (m || "empty"));
+      const canPlace = !m && myTurn() && !erasing && !busy;
+      const canHit = erasing && m === opp() && !busy;
+      b.disabled = !(canPlace || canHit);
+      if (m) { const sp = document.createElement("span"); sp.className = "mark"; sp.textContent = m; b.appendChild(sp); }
+      b.addEventListener("click", () => {
+        if (erasing) { erasing = false; act(`/api/games/${g.code}/erase`, { cell: i }); }
+        else act(`/api/games/${g.code}/move`, { cell: i });
+      });
+      boardEl.appendChild(b);
+    });
+    prevBoard = g.board.slice();
+
+    $("serialL").textContent = `B ${g.code} T`;
+    $("you").textContent = g.you || "Watching";
+    $("record").textContent = `${g.score.X}·${g.score.O}·${g.score.D}`;
+    const friendSeat = g.you ? opp() : null;
+    const fr = $("friend");
+    fr.innerHTML = "";
+    if (friendSeat) {
+      const joined = g.seats[friendSeat], on = g.online[friendSeat];
+      const dot = document.createElement("span"); dot.className = "dot" + (on ? " on" : "");
+      fr.append(dot, document.createTextNode(!joined ? "Not joined" : on ? "Online" : "Away"));
+    } else fr.textContent = "–";
+    $("inviteRow").hidden = !(g.you === "X" && !g.seats.O);
+
+    let status;
+    if (g.winner) status = g.winner === g.you ? "You win!" : g.you ? "Your friend wins." : `${g.winner} wins.`;
+    else if (g.draw) status = "Draw.";
+    else if (!g.seats.O) status = "Waiting for your friend to join.";
+    else if (!g.you) status = `${g.turn} to move.`;
+    else status = g.turn === g.you ? `Your move. You are ${g.you}.` : "Your friend's move.";
+    const st = $("status");
+    st.textContent = status;
+    st.className = "status" + (g.winner && g.winner === g.you ? " win" : g.winner && g.you ? " loss" : "");
+
+    const pay = $("payBtn");
+    pay.hidden = !g.you;
+    pay.setAttribute("aria-pressed", String(erasing));
+    pay.textContent = erasing ? "Cancel" : g.credits > 0 ? `Erase an ${g.you ? opp() : "O"} (paid)` : `Pay $1 to erase an ${g.you ? opp() : "O"}`;
+    pay.disabled = !erasing && (!canErase() || busy);
+    $("rematchBtn").hidden = !(over() && g.you);
+
+    let hint = "";
+    if (erasing) hint = `Click one of the ${opp()}'s to erase it.`;
+    else if (myTurn()) {
+      if (g.erasedThisTurn) hint = "Mark erased. Now place yours.";
+      else if (!g.board.includes(opp())) hint = "Your friend has nothing to erase yet.";
+    }
+    $("hint").textContent = hint;
+
+    const ol = $("ledger");
+    ol.innerHTML = "";
+    if (!g.log.length) {
+      const li = document.createElement("li"); li.className = "empty"; li.textContent = "No one has paid yet.";
+      ol.appendChild(li);
+    }
+    g.log.forEach(t => {
+      const li = document.createElement("li");
+      const a = document.createElement("span"); a.textContent = t;
+      const b = document.createElement("span"); b.className = "amt"; b.textContent = "$1";
+      li.append(a, b); ol.appendChild(li);
+    });
+  }
+
+  function connect(code, onFirst) {
+    $("lobby").hidden = true; $("game").hidden = false;
+    $("inviteLink").value = `${location.origin}/bribe-tac-toe/?game=${code}`;
+    let first = true;
+    es = new EventSource(`/api/games/${code}/stream`);
+    es.onmessage = e => {
+      g = JSON.parse(e.data);
+      if (first) { first = false; onFirst && onFirst(); }
+      render();
+    };
+    es.onerror = () => {
+      if (es.readyState === EventSource.CLOSED) {
+        notice("That game doesn't exist anymore. Start a new one.", true);
+        showLobby();
+      } else $("status").textContent = "Reconnecting…";
+    };
+  }
+
+  function showLobby() {
+    if (es) es.close();
+    g = null; history.replaceState(null, "", location.pathname);
+    $("game").hidden = true; $("lobby").hidden = false;
+  }
+
+  async function startGame() {
+    try {
+      const { code } = await api("/api/games", {});
+      if (es) es.close();
+      prevBoard = null; erasing = false;
+      history.replaceState(null, "", `/bribe-tac-toe/?game=${code}`);
+      connect(code);
+    } catch (err) { notice(err.message, true); }
+  }
+
+  $("startBtn").addEventListener("click", startGame);
+  $("newBtn").addEventListener("click", startGame);
+  $("rematchBtn").addEventListener("click", () => act(`/api/games/${g.code}/rematch`, {}));
+  $("copyBtn").addEventListener("click", () => {
+    const input = $("inviteLink");
+    navigator.clipboard.writeText(input.value)
+      .then(() => { $("copyBtn").textContent = "Copied"; setTimeout(() => $("copyBtn").textContent = "Copy link", 1500); })
+      .catch(() => { input.select(); });
+  });
+  $("payBtn").addEventListener("click", async () => {
+    if (erasing) { erasing = false; render(); return; }
+    if (g.credits > 0) { erasing = true; render(); return; }
+    const pay = $("payBtn"); pay.disabled = true; pay.textContent = "Opening Stripe…";
+    try {
+      const { url } = await api("/api/checkout", { game: g.code });
+      location.href = url;
+    } catch (err) { notice(err.message, true); render(); }
+  });
+
+  async function boot() {
+    const params = new URLSearchParams(location.search);
+    const code = (params.get("game") || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const sessionId = params.get("session_id");
+    if (code && (sessionId || params.has("canceled"))) history.replaceState(null, "", `/bribe-tac-toe/?game=${code}`);
+    if (params.has("canceled")) notice("Payment canceled. You weren't charged.");
+
+    let paidNow = false;
+    if (sessionId) {
+      try {
+        const r = await api("/api/confirm", { session_id: sessionId });
+        if (r.added) { paidNow = true; notice("Payment received. Pick a mark to erase."); }
+        else if (!r.paid) notice("That payment hasn't gone through yet. Refresh in a moment.", true);
+      } catch (err) { notice(err.message, true); }
+    }
+    if (code) connect(code, () => { if (paidNow && canErase()) erasing = true; });
+    else showLobby();
+  }
+  boot();
+})();
+</script>
+</body>
+</html>

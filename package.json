@@ -1,0 +1,16 @@
+{
+  "name": "bribe-tac-toe",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "stripe": "^17.7.0"
+  },
+  "engines": {
+    "node": ">=22.9"
+  }
+}
