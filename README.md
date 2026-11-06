@@ -19,7 +19,7 @@ One player clicks **Start a game** and sends the link; the first other person to
 
 1. Push this folder to a GitHub repository.
 2. On render.com, choose **New → Blueprint**, pick the repository, and Render reads `render.yaml`.
-3. When asked, paste your Stripe secret key into `STRIPE_SECRET_KEY`. Leave `STRIPE_WEBHOOK_SECRET` empty for now.
+3. When asked, paste your Stripe secret key into `STRIPE_SECRET_KEY`, and the $1 price ID from your Stripe product catalog (`price_...`) into `STRIPE_PRICE_ID`. Leave `STRIPE_WEBHOOK_SECRET` empty for now.
 4. After it deploys, open the `https://….onrender.com` address and start a game.
 
 Optional webhook (counts a payment even if the player closes the tab before Stripe sends them back): in Stripe, add an endpoint `https://<your-app>.onrender.com/webhook` for `checkout.session.completed`, then put its signing secret into `STRIPE_WEBHOOK_SECRET` on Render.

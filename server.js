@@ -9,6 +9,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 4242;
 const BASE_URL = (process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
 const PRICE_CENTS = 100; // $1 per erase
+// A Price from your Stripe product catalog (price_...). Recommended: it carries the product's tax code,
+// which accounts using Stripe-managed tax require. Without it, checkout builds an untaxed $1 product.
+const PRICE_ID = (process.env.STRIPE_PRICE_ID || "").trim();
 
 if (!process.env.STRIPE_SECRET_KEY) {
   console.error("Missing STRIPE_SECRET_KEY. Copy .env.example to .env and add your Stripe test key.");
@@ -219,7 +222,7 @@ app.post("/api/checkout", async (req, res) => {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       client_reference_id: req.pid,
-      line_items: [{
+      line_items: [PRICE_ID ? { price: PRICE_ID, quantity: 1 } : {
         quantity: 1,
         price_data: {
           currency: "usd",
@@ -232,7 +235,7 @@ app.post("/api/checkout", async (req, res) => {
     });
     res.json({ url: session.url });
   } catch (err) {
-    console.error(err);
+    console.error("Stripe checkout failed:", err.message);
     res.status(500).json({ error: "Couldn't open Stripe. Try again in a moment." });
   }
 });
